@@ -1094,12 +1094,13 @@ def test_json_reports_input_errors_on_stdout(capsys, fixtures, tmp_path):
     assert set(error) == {"message", "type"} and "nonexistent.lock" in error["message"]
     assert plain_out(missing) == ""
 
-    error = json_error("--dockerfile", "nonexistent_dockerfile")
+    missing_dockerfile = str(tmp_path / "nonexistent_dockerfile")
+    error = json_error("--dockerfile", missing_dockerfile)
     assert error == {
-        "message": "--dockerfile nonexistent_dockerfile: no such file",
+        "message": f"--dockerfile {missing_dockerfile}: no such file",
         "type": "DockerfileError",
     }
-    assert plain_out("--dockerfile", "nonexistent_dockerfile") == ""
+    assert plain_out("--dockerfile", missing_dockerfile) == ""
 
     (tmp_path / "docker_dir").mkdir()
     error = json_error("--dockerfile", str(tmp_path / "docker_dir"))

@@ -2301,8 +2301,11 @@ def _main(argv: list[str], project: Path | None = None) -> int:
         """The image of --dockerfile. One wheelgap can't read is an error, unless -p and -t say what to check."""
         nonlocal image, unknown_image
         path = Path(args.dockerfile)
-        if not path.exists():
-            raise DockerfileError(f"--dockerfile {args.dockerfile}: no such file")
+        # Not path.exists(): from Python 3.14 it is False for any OSError, and a permission error keeps its own message.
+        try:
+            path.stat()
+        except (FileNotFoundError, NotADirectoryError):
+            raise DockerfileError(f"--dockerfile {args.dockerfile}: no such file") from None
         if path.is_dir():
             clean = args.dockerfile.rstrip("/\\")
             example = f"{clean}/Dockerfile" if clean else "/Dockerfile"
