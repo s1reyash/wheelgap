@@ -1038,6 +1038,46 @@ def test_missing_requirements_in_is_not_a_pypi_package(capsys, tmp_path, monkeyp
         assert not out
 
 
+@pytest.mark.parametrize("as_json", [False, True])
+def test_dockerfile_missing_path(capsys, tmp_path, monkeypatch, fake_pypi, as_json):
+    monkeypatch.chdir(tmp_path)
+    args = ["--dockerfile", "nope"]
+    if as_json:
+        args.append("--json")
+    code, out, err = run(capsys, *args)
+    assert code == 2
+    assert err == "wheelgap: error: --dockerfile nope: no such file\n"
+    assert not fake_pypi
+    if as_json:
+        assert json.loads(out)["error"] == {
+            "message": "--dockerfile nope: no such file",
+            "type": "DockerfileError",
+        }
+    else:
+        assert not out
+
+
+@pytest.mark.parametrize("as_json", [False, True])
+def test_dockerfile_folder(capsys, tmp_path, monkeypatch, fake_pypi, as_json):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "docker").mkdir()
+    args = ["--dockerfile", "docker"]
+    if as_json:
+        args.append("--json")
+    code, out, err = run(capsys, *args)
+    assert code == 2
+    expected = "--dockerfile docker: is a folder; pass the Dockerfile in it, e.g. docker/Dockerfile"
+    assert err == f"wheelgap: error: {expected}\n"
+    assert not fake_pypi
+    if as_json:
+        assert json.loads(out)["error"] == {
+            "message": expected,
+            "type": "DockerfileError",
+        }
+    else:
+        assert not out
+
+
 def test_json_reports_input_errors_on_stdout(capsys, fixtures, tmp_path):
     def json_error(*argv):
         code, out, err = run(capsys, *argv, "--json")
@@ -1053,6 +1093,20 @@ def test_json_reports_input_errors_on_stdout(capsys, fixtures, tmp_path):
     error = json_error(missing)
     assert set(error) == {"message", "type"} and "nonexistent.lock" in error["message"]
     assert plain_out(missing) == ""
+
+    error = json_error("--dockerfile", "nonexistent_dockerfile")
+    assert error == {
+        "message": "--dockerfile nonexistent_dockerfile: no such file",
+        "type": "DockerfileError",
+    }
+    assert plain_out("--dockerfile", "nonexistent_dockerfile") == ""
+
+    (tmp_path / "docker_dir").mkdir()
+    error = json_error("--dockerfile", str(tmp_path / "docker_dir"))
+    assert set(error) == {"message", "type"}
+    assert error["type"] == "DockerfileError"
+    assert "is a folder; pass the Dockerfile in it" in error["message"]
+    assert plain_out("--dockerfile", str(tmp_path / "docker_dir")) == ""
 
     error = json_error("six", "-t", "nosuchplatform")
     assert error["type"] == "TargetError" and "nosuchplatform" in error["message"]
